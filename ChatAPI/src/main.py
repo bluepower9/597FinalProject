@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Form
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 import logging
 import uvicorn
 from util import *
@@ -9,6 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 app = FastAPI()
+# app.add_middleware(HTTPSRedirectMiddleware)
 
 @app.get(
         '/',

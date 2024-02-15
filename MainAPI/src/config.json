@@ -1,0 +1,9 @@
+{
+    "server": {
+        "host": "127.0.0.1",
+        "port": 8001
+    },
+    "database": {
+        "uri": "mysql+mysqlconnector://root:password1!@localhost:3306/597Project"
+    }
+}
