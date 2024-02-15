@@ -76,7 +76,6 @@ async def login(params: LoginUser):
      
 
 
-
 if __name__ == '__main__':
     configs = read_configs(filename='./config.json')
     uvicorn.run('main:app', host=configs['server']['host'], port=configs['server']['port'], reload=True)

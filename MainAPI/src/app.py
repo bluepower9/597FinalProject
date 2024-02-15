@@ -43,14 +43,32 @@ def login_user(params: LoginUser) -> str:
         return None
     
     logging.info(f'Generating session id for user: {params.username}')
-    sessionid = uuid.uuid4()
+    sessionid = str(uuid.uuid4())
 
-
+    user = get_user_info(params)
+    if not add_session(sessionid, user.userid):
+        return None
+    
     return sessionid
         
 
+def add_session(sessionid: str, userid) -> bool:
+    db = database.db
 
-def authenticate_user(params: LoginUser) -> bool:
+    try:
+        with db.connect() as conn:
+            logging.info(f'Adding session for user_id: {userid}')
+            query = text('INSERT INTO login_sessions (user_id, session_id) VALUES(:userid, :sessionid);')
+            conn.execute(query, userid= userid, sessionid=sessionid)
+            
+    except Exception as e:
+        logging.info(f'Failed to add session. Error: {e}')
+        return False
+    
+    return True
+
+
+def authenticate_user(params: UserInfo) -> bool:
     '''
     Pulls user data and performs password validation.
 

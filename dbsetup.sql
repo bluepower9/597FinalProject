@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS login_sessions(
     user_id int NOT NULL,
     session_id VARCHAR(64),
-    start_time DATETIME NOT NULL,
+    start_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     PRIMARY KEY (session_id),
     FOREIGN KEY (user_id) references users(user_id)
