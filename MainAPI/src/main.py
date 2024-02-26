@@ -55,11 +55,11 @@ async def testdb():
 )
 async def register_new_user(params:RegisterUser):
     logging.info('registration request')
-    result = register_user(params)
+    result, msg = register_user(params)
     
     
 
-    return {'result': result}
+    return {'result': result, 'message': msg}
 
 
 @app.post(

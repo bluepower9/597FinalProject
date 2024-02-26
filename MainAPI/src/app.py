@@ -5,19 +5,26 @@ from util.modelparams import *
 from util.db import MySQLDatabase
 import bcrypt
 import uuid
+import re
 
 
 database = MySQLDatabase()
 
 
-def register_user(params:RegisterUser) -> bool:
+def register_user(params:RegisterUser) -> tuple[bool, str]:
     '''
     Wrapper function to perform full registering a new user sequence.
 
-    Returns if a new user was registered or not.
+    Returns if a new user was registered or not and a status message.
     '''
     params.username = params.username.lower().strip()
     params.email = params.email.lower().strip()
+
+    # validate email
+    if not validate_email(params.email):
+        logging.info(f'Invalid email supplied: {params.email}')
+        return False, 'Invalid email supplied.'
+
 
     if not check_existing_user(params.username, params.email):
         result = create_new_user(params)
@@ -26,9 +33,42 @@ def register_user(params:RegisterUser) -> bool:
     
     else:
         logging.info(f'User already exists (username: {params.username}, email: {params.email})')
+        return False, 'User already exists.'
+    
+    return result, 'Successfully registered new user.'
+
+
+def validate_pw(pw: str) -> bool: 
+    '''
+    Checks if a valid pw is supplied.  Length must be less than or equal to 16.
+    Must have 1 upper case, lower case, number and special character. 
+    Greater than or equal to 8 characters.
+
+    Returns True if valid, False otherwise.
+    '''
+    if len(pw) > 16 or len(pw) < 8:
         return False
     
-    return result
+    
+    
+
+
+
+def validate_email(email: str) -> bool:
+    '''
+    Checks if a valid email was given using regex.
+
+    Returns True if valid False if not.
+    '''
+
+    regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
+    if len(email) > 64:
+        return False
+    
+    return re.search(regex, email) is not None
+
+
+
 
 
 def login_user(params: LoginUser) -> str:
