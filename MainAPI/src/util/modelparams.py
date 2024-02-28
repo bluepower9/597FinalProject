@@ -1,4 +1,10 @@
 from pydantic import BaseModel
+from typing import Annotated
+from fastapi import Form, UploadFile
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class RegisterUser(BaseModel):
     username: str
@@ -17,6 +23,12 @@ class UserInfo(BaseModel):
     email: str
     password: bytes
     salt: bytes
+
+
+class Token(BaseModel):
+    access_token:str
+    token_type: str
+
 
 
 
