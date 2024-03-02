@@ -1,7 +1,8 @@
 import json
 import logging
 import bcrypt
-
+import os
+from fastapi import HTTPException, status
 
 
 def read_configs(filename='config.json') -> dict:

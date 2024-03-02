@@ -1,18 +1,27 @@
-from fastapi import FastAPI, HTTPException, Form
+from fastapi import FastAPI, HTTPException, Form, Response, Cookie, Depends, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from typing import Annotated, Union
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 import logging
 import uvicorn
 from util import *
+from util.auth import *
 from util.modelparams import *
 from util.db import *
 from app import *
 from sqlalchemy import text
+from jose import JWTError, jwt
+from routers import documents, dialogue
+import sys
 
 logging.basicConfig(level=logging.INFO)
 
 
 app = FastAPI()
 # app.add_middleware(HTTPSRedirectMiddleware)
+app.include_router(documents.router)
+app.include_router(dialogue.router)
+
 database = MySQLDatabase()
 
 
@@ -51,7 +60,8 @@ async def testdb():
 @app.post(
     '/register',
     summary='endpoint for user to register to system',
-    tags=['authentication']
+    tags=['authentication'],
+    dependencies=None
 )
 async def register_new_user(params:RegisterUser):
     logging.info('registration request')
@@ -67,13 +77,62 @@ async def register_new_user(params:RegisterUser):
     summary='login endpoint for users.',
     tags=['authentication']
 )
-async def login(params: LoginUser):
-    logging.info(f'authenticating user "{params.username}"...')
-    sessionid = login_user(params)
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    logging.info(f'authenticating user "{form_data.username}"...')
+    token = await login_for_access_token(form_data=form_data)
+    userinfo = await get_current_user(token.access_token)
+    userinfo = dict(userinfo)
+    del userinfo['password']
+    del userinfo['salt']
+    return {'token':token, 'user': userinfo}
 
-    return {'user': sessionid}
 
-     
+@app.post(
+        '/logout',
+        summary='logout endpoint to invalidate token.',
+        tags = ['authentication']
+)
+async def logout(token: Annotated[str, Depends(oauth2_scheme)]):
+    if not token:
+        logging.error('no token supplied.')
+        return {'success': False, 'message': 'No token supplied.'}
+    
+    db = database.db
+    try:
+        with db.connect() as conn:
+            query = text('INSERT INTO invalid_jwt_tokens (token) VALUES(:token);')
+            conn.execute(query, dict(token=token))
+            conn.commit()
+
+    except Exception as e:
+        logging.error(f'Failed add to invalid_jwt_tokens table. Error: {e}')
+        return {'success': False, 'message': 'Failed to invalidate token'}
+    
+    return {'success': True, 'message': 'Successfully logged out user.'}
+
+
+@app.post(
+        '/token',
+        summary='gets token for user',
+        tags=['authentication']
+          )
+async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
+    user = authenticate_user(form_data)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Incorrect username or password',
+            headers={'WWW-Authenticate': 'Bearer'}
+        )
+
+    access_token = create_access_token({'sub': user.username})
+
+    return Token(access_token=access_token, token_type='bearer')
+    
+    
+@app.get('/testauth')
+async def testauth(current_user: Annotated[UserInfo, Depends(get_current_user)]):
+    return current_user
 
 
 if __name__ == '__main__':

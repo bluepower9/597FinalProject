@@ -1,4 +1,7 @@
 import sqlalchemy
+from typing import Annotated
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import create_engine, text
 from util.util import *
 from util.modelparams import *
@@ -8,7 +11,17 @@ import uuid
 import re
 
 
+
 database = MySQLDatabase()
+
+configs = read_configs()
+
+JWT_SECRET_KEY = configs['auth']['jwt_key']
+ALGORITHM = 'HS256'
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
+
 
 
 def register_user(params:RegisterUser) -> tuple[bool, str]:
@@ -49,8 +62,6 @@ def validate_pw(pw: str) -> bool:
     if len(pw) > 16 or len(pw) < 8:
         return False
     
-    
-    
 
 
 
@@ -69,85 +80,26 @@ def validate_email(email: str) -> bool:
 
 
 
+# def login_user(params: OAuth2PasswordRequestForm) -> str:
+#     '''
+#     Takes in user credentials (username, password) and tries to authenticate
+#     and create session key.
 
-
-def login_user(params: LoginUser) -> str:
-    '''
-    Takes in user credentials (username, password) and tries to authenticate
-    and create session key.
-
-    Returns session key if user is authenticated, None otherwise.
-    '''
-    if not authenticate_user(params):
-        logging.info(f'Invalid credentials for user: {params.username}')
-        return None
+#     Returns session key if user is authenticated, None otherwise.
+#     '''
+#     user = authenticate_user(params)
+#     if user:
+#         logging.info(f'Invalid credentials for user: {params.username}')
+#         return None
     
-    logging.info(f'Generating session id for user: {params.username}')
-    sessionid = str(uuid.uuid4())
+#     logging.info(f'Generating session id for user: {params.username}')
+#     sessionid = str(uuid.uuid4())
 
-    user = get_user_info(params)
-    if not add_session(sessionid, user.userid):
-        return None
+#     user = get_user_info(params.username)
+#     if not add_session(sessionid, user.userid):
+#         return None
     
-    return sessionid
-        
-
-def add_session(sessionid: str, userid) -> bool:
-    db = database.db
-
-    try:
-        with db.connect() as conn:
-            logging.info(f'Adding session for user_id: {userid}')
-            query = text('INSERT INTO login_sessions (user_id, session_id) VALUES(:userid, :sessionid);')
-            conn.execute(query, userid= userid, sessionid=sessionid)
-            
-    except Exception as e:
-        logging.info(f'Failed to add session. Error: {e}')
-        return False
-    
-    return True
-
-
-def authenticate_user(params: UserInfo) -> bool:
-    '''
-    Pulls user data and performs password validation.
-
-    Returns if the supplied password matches the stored one in database.
-    '''
-    user = get_user_info(params)
-
-    if user is None:
-        return False
-    
-    password = params.password.encode('utf-8')
-    hash = bcrypt.hashpw(password, user.salt)
-    
-    return hash == user.password
-
-
-def get_user_info(params: LoginUser) -> UserInfo:
-    '''
-    Fetches user info for a given username and returns all information for a user.
-    Returns None if user does not exist.
-    '''
-    db = database.db
-    user = None
-    colnames = ['userid', 'username', 'email', 'password', 'salt']
-
-    try:
-        with db.connect() as conn:
-            query = text('SELECT * FROM users WHERE username = :username;')
-            result = conn.execute(query, username=params.username)
-            result = result.fetchone()
-            if result:
-                user = UserInfo(**dict(zip(colnames, result)))
-
-    except Exception as e:
-        logging.error(f'Failed to fetch user info for "{params.username}"  Error: {e}')
-
-    return user
-
-
+#     return sessionid
 
 def create_new_user(params: RegisterUser) -> bool:
     '''
@@ -167,7 +119,8 @@ def create_new_user(params: RegisterUser) -> bool:
     try:
         with db.connect() as conn:
             query = text('INSERT INTO users (username, email, password, salt) VALUES(:username, :email, :password, :salt);')
-            conn.execute(query, username=params.username, email=params.email, password=hash, salt=salt)
+            conn.execute(query, dict(username=params.username, email=params.email, password=hash, salt=salt))
+            conn.commit()
 
     except Exception as e:
         logging.error(f'Failed to add new user into database. error: {e}')
@@ -189,8 +142,8 @@ def check_existing_user(username:str, email:str) -> bool:
 
     db = database.db
     with db.connect() as conn:
-        query = text('SELECT * from users WHERE username = :username OR email = :email;')
-        result = conn.execute(query, username=username, email=email)
+        query = text('SELECT * from users WHERE username=:username OR email=:email;')
+        result = conn.execute(query, dict(username=username, email=email))
         result = result.fetchall()
 
     return len(result) > 0
