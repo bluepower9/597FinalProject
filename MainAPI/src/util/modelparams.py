@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import Form, UploadFile
 
 class Token(BaseModel):
@@ -29,6 +29,12 @@ class Token(BaseModel):
     access_token:str
     token_type: str
 
+
+class Document(BaseModel):
+    userid: int
+    filename: str
+    excerpts: list
+    docid: Optional[int] = None
 
 
 

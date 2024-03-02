@@ -11,7 +11,8 @@ from util.db import *
 from app import *
 from sqlalchemy import text
 from jose import JWTError, jwt
-from routers import documents
+from routers import documents, dialogue
+import sys
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,10 +20,9 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 # app.add_middleware(HTTPSRedirectMiddleware)
 app.include_router(documents.router)
+app.include_router(dialogue.router)
 
 database = MySQLDatabase()
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
 
 
 @app.get(
@@ -72,17 +72,19 @@ async def register_new_user(params:RegisterUser):
     return {'result': result, 'message': msg}
 
 
-# @app.post(
-#     '/login',
-#     summary='login endpoint for users.',
-#     tags=['authentication']
-# )
-# async def login(params: LoginUser, response: Response, cookie):
-#     logging.info(f'authenticating user "{params.username}"...')
-#     sessionid = login_user(params)
-#     response.set_cookie(key='loginsession', secure=False, value = sessionid)
-
-#     return {'login status': sessionid!=None}
+@app.post(
+    '/login',
+    summary='login endpoint for users.',
+    tags=['authentication']
+)
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    logging.info(f'authenticating user "{form_data.username}"...')
+    token = await login_for_access_token(form_data=form_data)
+    userinfo = await get_current_user(token.access_token)
+    userinfo = dict(userinfo)
+    del userinfo['password']
+    del userinfo['salt']
+    return {'token':token, 'user': userinfo}
 
 
 @app.post(
@@ -99,7 +101,8 @@ async def logout(token: Annotated[str, Depends(oauth2_scheme)]):
     try:
         with db.connect() as conn:
             query = text('INSERT INTO invalid_jwt_tokens (token) VALUES(:token);')
-            conn.execute(query, token=token)
+            conn.execute(query, dict(token=token))
+            conn.commit()
 
     except Exception as e:
         logging.error(f'Failed add to invalid_jwt_tokens table. Error: {e}')

@@ -1,9 +1,9 @@
 USE 597Project;
 
-DROP TABLE login_sessions;
-DROP TABLE users;
 DROP TABLE excerpts;
 DROP TABLE documents;
+DROP TABLE login_sessions;
+DROP TABLE users;
 DROP TABLE invalid_jwt_tokens;
 
 
@@ -34,9 +34,11 @@ CREATE TABLE IF NOT EXISTS invalid_jwt_tokens (
 
 CREATE TABLE IF NOT EXISTS documents (
     doc_id int NOT NULL AUTO_INCREMENT,
+    user_id int NOT NULL,
     title varchar(256) NOT NULL,
 
-    PRIMARY KEY (doc_id)
+    PRIMARY KEY (doc_id),
+    FOREIGN KEY (user_id) references users(user_id)
 );
 
 CREATE TABLE IF NOT EXISTS excerpts (

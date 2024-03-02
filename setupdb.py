@@ -17,7 +17,7 @@ def run_file(filename='dbsetup.sql'):
             queries = file.read().split(';')
             for q in queries:
                 try: 
-                    conn.execute(q)
+                    conn.execute(text(q))
                     # print('*'*25 + '\n' + f'Executed SQL statement: {q}')
                 
                 except Exception as e:

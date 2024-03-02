@@ -18,7 +18,7 @@ configs = read_configs()
 
 JWT_SECRET_KEY = configs['auth']['jwt_key']
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440 #60*24 mins
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
 
@@ -43,7 +43,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
             raise cred_exception
         
     except JWTError as e:
-        logging.info(e)
+        logging.info(f'error validating jwt token: {e}')
         raise cred_exception
     
     user = get_user_info(username)
@@ -56,7 +56,7 @@ def valid_jwt_token(token: str) -> bool:
     try:
         with db.connect() as conn:
             query = text('SELECT * FROM invalid_jwt_tokens WHERE token = :token;')
-            result = conn.execute(query, token=token)
+            result = conn.execute(query, dict(token=token))
             result = result.fetchone()
             if result:
                 return False
@@ -72,7 +72,6 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({'exp': expire})
-    print(to_encode)
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
     
     return encoded_jwt
@@ -106,8 +105,8 @@ def get_user_info(username: str) -> UserInfo:
 
     try:
         with db.connect() as conn:
-            query = text('SELECT * FROM users WHERE username = :username;')
-            result = conn.execute(query, username=username)
+            query = text('SELECT * FROM users WHERE username=:username;')
+            result = conn.execute(query, dict(username=username))
             result = result.fetchone()
             if result:
                 user = UserInfo(**dict(zip(colnames, result)))
