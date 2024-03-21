@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS invalid_jwt_tokens (
 CREATE TABLE IF NOT EXISTS documents (
     doc_id int NOT NULL AUTO_INCREMENT,
     user_id int NOT NULL,
+    upload_ts DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     title varchar(256) NOT NULL,
+    descr TEXT,
 
     PRIMARY KEY (doc_id),
     FOREIGN KEY (user_id) references users(user_id)
@@ -43,7 +45,7 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE TABLE IF NOT EXISTS excerpts (
     excerpt_id int NOT NULL AUTO_INCREMENT,
-    excerpt varchar(2048) NOT NULL,
+    excerpt TEXT NOT NULL,
     doc_id int NOT NULL,
 
     PRIMARY KEY (excerpt_id),

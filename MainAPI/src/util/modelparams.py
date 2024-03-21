@@ -35,6 +35,7 @@ class Document(BaseModel):
     filename: str
     excerpts: list
     docid: Optional[int] = None
+    description: Optional[str] = ""
 
 
 

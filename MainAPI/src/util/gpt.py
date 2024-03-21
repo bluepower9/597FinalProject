@@ -1,4 +1,4 @@
-import openai
+import openai 
 from util.openai import APIKEY
 import logging
 
@@ -25,6 +25,9 @@ def call_gpt(msg):
         logging.error(f'Failed to query chatGPT. Error: {e}')
         return None
 
+
+def get_embeddings(s:str) -> list:
+    client.embeddings.create(s)
 
 
 if __name__ == '__main__':

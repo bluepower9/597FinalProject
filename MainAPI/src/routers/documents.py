@@ -5,6 +5,7 @@ from util.auth import get_current_user, oauth2_scheme
 import logging
 from util.docprocessing import *
 import os
+import time
 from util.modelparams import *
 
 
@@ -20,7 +21,8 @@ router = APIRouter(
 @router.post('/upload', summary='Upload a PDF document to the server.')
 async def upload_document(
     userinfo: Annotated[UserInfo, Depends(get_current_user)],
-    file: UploadFile = File()
+    file: UploadFile = File(),
+    description: str = Form()
 ):
     filename = file.filename
     dl_path = f'./temp/{filename}'
@@ -37,8 +39,10 @@ async def upload_document(
 
     os.remove(dl_path)
 
+    description = "" if not description else description.strip()
+
     logging.info('saving to db...')
-    doc = Document(userid=userinfo.userid, filename=filename, excerpts=chunks)
+    doc = Document(userid=userinfo.userid, filename=filename, excerpts=chunks, description=description)
     docid = create_new_doc(doc)
     logging.info(f'created new doc: {docid}')
     save_excerpts_db(doc)
@@ -68,6 +72,18 @@ async def fetch_all_documents_for_user(
 ):
     docs = get_user_files(userinfo.userid)
     return {'documents': docs}
+
+
+@router.post('/file', summary='get extracted text for a given document for the user.')
+async def fetch_file_text(
+    userinfo: Annotated[UserInfo, Depends(get_current_user)],
+    doc_id: int = Form()
+):
+    return {'text': get_document(userinfo.userid, doc_id)}
+
+
+
+
 
 
 

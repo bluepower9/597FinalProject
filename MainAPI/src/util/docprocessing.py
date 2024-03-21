@@ -29,6 +29,15 @@ def divide_into_chunks(document, chunk_size=10, overlap=3):
     return chunks
 
 
+def strip_excerpt_overlap(s, overlap=3, start=True, end=False):
+    sentences = sent_tokenize(s)
+    startindex = 0 if start else 2
+    endindex = len(sentences)-3 if not end else len(sentences)
+
+    return ' '.join(sentences[startindex: endindex])
+
+
+
 async def download_upload_file(file, path):
     """
     downloads the file completely to the given path.
@@ -57,8 +66,8 @@ def create_new_doc(doc: Document) -> int:
 
     try:
         with db.connect() as conn:
-            query = text('INSERT INTO documents (title, user_id) VALUES(:title, :user_id);')
-            row = conn.execute(query, dict(title=doc.filename, user_id=doc.userid))
+            query = text('INSERT INTO documents (title, user_id, descr) VALUES(:title, :user_id, :descr);')
+            row = conn.execute(query, dict(title=doc.filename, user_id=doc.userid, descr=doc.description))
             conn.commit()
             doc.docid = row.lastrowid
             return row.lastrowid
@@ -105,7 +114,7 @@ def get_user_files(userid: int) -> list:
     
     try:
         with db.connect() as conn:
-            query = text('SELECT doc_id, title FROM documents WHERE user_id=:user_id;')
+            query = text('SELECT doc_id, title, upload_ts, descr FROM documents WHERE user_id=:user_id;')
             data = conn.execute(query, dict(user_id=userid))
             data = data.mappings().fetchall()
             return data
@@ -113,6 +122,30 @@ def get_user_files(userid: int) -> list:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to fetch docs. error {e}')
     
+
+def get_document(user_id: int, doc_id: int) -> str:
+    db = database.db
+    if doc_id is None or type(doc_id) != int:
+        return ''
+    
+    try:
+        with db.connect() as conn:
+            query = text('SELECT excerpt_id, excerpt FROM excerpts JOIN documents ON excerpts.doc_id=documents.doc_id WHERE excerpts.doc_id=:doc_id AND documents.user_id=:user_id ORDER BY excerpt_id ASC;')
+            data = conn.execute(query, dict(user_id=user_id,doc_id=doc_id))
+            data = data.mappings().fetchall()
+
+            if len(data) == 0:
+                return ''
+            
+            result = ''
+            for i, chunk in enumerate(data):
+                result += strip_excerpt_overlap(chunk['excerpt'], end=(i==len(data)-1))
+            
+            return result            
+    
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to fetch docs. error {e}')
+
 
 def delete_file(doc_id: int) -> bool:
     '''

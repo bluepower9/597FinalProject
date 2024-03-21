@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Form, Response, Cookie, Depends, sta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Annotated, Union
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 import uvicorn
 from util import *
@@ -18,6 +19,14 @@ logging.basicConfig(level=logging.INFO)
 
 
 app = FastAPI()
+origins = ['*']
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*']
+    )
 # app.add_middleware(HTTPSRedirectMiddleware)
 app.include_router(documents.router)
 app.include_router(dialogue.router)
@@ -63,8 +72,9 @@ async def testdb():
     tags=['authentication'],
     dependencies=None
 )
-async def register_new_user(params:RegisterUser):
+async def register_new_user(username:str=Form(), email:str=Form(), password:str=Form()):
     logging.info('registration request')
+    params = RegisterUser(username=username, email=email, password=password)
     result, msg = register_user(params)
     
     
@@ -132,7 +142,10 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
     
 @app.get('/testauth')
 async def testauth(current_user: Annotated[UserInfo, Depends(get_current_user)]):
-    return current_user
+    result = dict(current_user)
+    del result['salt']
+    del result['password']
+    return result
 
 
 if __name__ == '__main__':
