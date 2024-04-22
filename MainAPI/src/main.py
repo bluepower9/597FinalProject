@@ -150,4 +150,4 @@ async def testauth(current_user: Annotated[UserInfo, Depends(get_current_user)])
 
 if __name__ == '__main__':
     configs = read_configs(filename='./config.json')
-    uvicorn.run('main:app', host=configs['server']['host'], port=configs['server']['port'], reload=True)
+    uvicorn.run('main:app', host=configs['server']['host'], port=configs['server']['port'], reload=True, reload_excludes='*/vectordb/')

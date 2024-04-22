@@ -22,9 +22,14 @@ router = APIRouter(
 async def upload_document(
     userinfo: Annotated[UserInfo, Depends(get_current_user)],
     file: UploadFile = File(),
+    title: str = Form(default=None),
     description: str = Form()
 ):
-    filename = file.filename
+    if title is None or title.strip() == '':
+        filename = file.filename
+    else:
+        filename = title
+
     dl_path = f'./temp/{filename}'
     logging.info(f'received file: {filename}')
 
@@ -61,7 +66,7 @@ async def delete_document(
     if doc_id not in all_doc_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Document not found for user.')
     
-    success = delete_file(doc_id)
+    success = delete_file(userinfo.userid, doc_id)
 
     return {'deleted': success, 'doc_id': doc_id}
 

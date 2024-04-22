@@ -3,14 +3,17 @@ from nltk.tokenize import sent_tokenize
 from fastapi import HTTPException, status
 import fitz
 import re
-from util.db import MySQLDatabase
+from util.db import MySQLDatabase, VectorDB
 from util.modelparams import *
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import create_engine, text
+import logging
 
+
+logging.basicConfig(level=logging.INFO)
 nltk.download('punkt')
 database = MySQLDatabase()
-
+vectordb = VectorDB()
 
 # Define a function to divide the input document into overlapping chunks
 def divide_into_chunks(document, chunk_size=10, overlap=3):
@@ -93,12 +96,15 @@ def save_excerpts_db(doc: Document) -> bool:
                 conn.execute(query, dict(excerpt=exc, doc_id=doc.docid))
             
             conn.commit()
+        
+        logging.info('adding to vectordb...')
+        vectordb.add_file(doc.userid, doc.docid, get_excerpts(doc.docid, doc.userid))
+
 
     except Exception as e:
         conn.close()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
             
-    
     return True
 
 
@@ -123,7 +129,7 @@ def get_user_files(userid: int) -> list:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to fetch docs. error {e}')
     
 
-def get_document(user_id: int, doc_id: int) -> str:
+def get_excerpts(doc_id: int, user_id: int) -> list:
     db = database.db
     if doc_id is None or type(doc_id) != int:
         return ''
@@ -135,19 +141,35 @@ def get_document(user_id: int, doc_id: int) -> str:
             data = data.mappings().fetchall()
 
             if len(data) == 0:
-                return ''
+                return []
             
-            result = ''
-            for i, chunk in enumerate(data):
-                result += strip_excerpt_overlap(chunk['excerpt'], end=(i==len(data)-1))
-            
-            return result            
+            return data
+                     
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to fetch docs. error {e}')
+
+
+def get_document(user_id: int, doc_id: int) -> str:
+
+    if doc_id is None or type(doc_id) != int:
+        return ''
+    
+    try:
+        data = get_excerpts(doc_id, user_id)   
+        if len(data) == 0:
+            return ''
+        
+        result = ''
+        for i, chunk in enumerate(data):
+            result += strip_excerpt_overlap(chunk['excerpt'], end=(i==len(data)-1))
+        
+        return result
     
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to fetch docs. error {e}')
 
 
-def delete_file(doc_id: int) -> bool:
+def delete_file(userid: int, doc_id: int) -> bool:
     '''
     Deletes the given document from the database.
     '''
@@ -161,7 +183,9 @@ def delete_file(doc_id: int) -> bool:
             data = conn.execute(query2, dict(doc_id=doc_id))
             conn.commit()
 
-            return data.rowcount > 0
+        vectordb.delete(userid, doc_id)
+
+        return data.rowcount > 0
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to delete document. error {e}')

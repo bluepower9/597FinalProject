@@ -6,17 +6,22 @@ import logging
 logging.basicConfig(level=logging.INFO)
 client = openai.OpenAI(api_key=APIKEY)
 
-def call_gpt(msg):
+def call_gpt(msg, excerpts):
     '''
     Calls the OpenAI API and fetches a response from chatGPT 3.5 turbo.
     
     Returns the message response string from chatGPT
     '''
+
+    context = ' '.join(excerpts)
+
     try:
         output = client.chat.completions.create(
             model='gpt-3.5-turbo',
-            messages=[{'role': 'user',
-                    'content': msg}]
+            messages=[
+                {'role': 'system', 'content': f'Using only this information, answer the user\'s question: {context}'},
+                {'role': 'user', 'content': msg}
+            ]
         )
 
         return output.choices[0].message.content
