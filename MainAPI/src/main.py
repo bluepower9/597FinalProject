@@ -76,10 +76,41 @@ async def register_new_user(username:str=Form(), email:str=Form(), password:str=
     logging.info('registration request')
     params = RegisterUser(username=username, email=email, password=password)
     result, msg = register_user(params)
-    
-    
+      
 
     return {'result': result, 'message': msg}
+
+
+@app.post(
+        '/resetpw',
+        tags=['authentication', 'update user']
+)
+async def reset_password(
+    email: str=Form()
+):
+    userinfo = get_user_from_email(email)
+    if userinfo is None:
+        return {'No user found.'}
+    
+    token = create_access_token({'sub': userinfo.username, 'grant': 'password reset'}, tok_life=15)
+
+    return {'token': token, 'url': 'http://localhost:3000/reset?reset_token='+token}
+
+
+@app.post(
+        '/updatepw',
+        tags=['authentication', 'update user']
+)
+async def change_password(
+    userinfo: Annotated[UserInfo, Depends(get_current_user_for_pw_reset)],
+    token: Annotated[str, Depends(oauth2_scheme)],
+    newpw: str = Form()
+):
+    result, msg = update_password(userinfo, newpw)
+    if result:
+        invalidate_token(token)
+    return {'updated': result, 'message': msg}
+
 
 
 @app.post(
@@ -107,18 +138,11 @@ async def logout(token: Annotated[str, Depends(oauth2_scheme)]):
         logging.error('no token supplied.')
         return {'success': False, 'message': 'No token supplied.'}
     
-    db = database.db
-    try:
-        with db.connect() as conn:
-            query = text('INSERT INTO invalid_jwt_tokens (token) VALUES(:token);')
-            conn.execute(query, dict(token=token))
-            conn.commit()
-
-    except Exception as e:
-        logging.error(f'Failed add to invalid_jwt_tokens table. Error: {e}')
+    status = invalidate_token(token)
+    if not status:
         return {'success': False, 'message': 'Failed to invalidate token'}
-    
-    return {'success': True, 'message': 'Successfully logged out user.'}
+    else:
+        return {'success': True, 'message': 'Successfully logged out user.'}
 
 
 @app.post(
@@ -135,11 +159,18 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
             headers={'WWW-Authenticate': 'Bearer'}
         )
 
-    access_token = create_access_token({'sub': user.username})
+    access_token = create_access_token({'sub': user.username, 'grant': 'user'})
 
     return Token(access_token=access_token, token_type='bearer')
     
-    
+
+@app.get('/checkpwtoken')
+async def check_pw_token(userinfo: Annotated[UserInfo, Depends(get_current_user_for_pw_reset)]):
+    result = dict(userinfo)
+    del result['salt']
+    del result['password']
+    return result 
+
 @app.get('/testauth')
 async def testauth(current_user: Annotated[UserInfo, Depends(get_current_user)]):
     result = dict(current_user)

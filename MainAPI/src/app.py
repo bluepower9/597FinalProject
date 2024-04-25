@@ -38,6 +38,10 @@ def register_user(params:RegisterUser) -> tuple[bool, str]:
         logging.info(f'Invalid email supplied: {params.email}')
         return False, 'Invalid email supplied.'
 
+    if not validate_pw(params.password):
+        logging.info('Invalid password supplied.')
+        return False, 'Invalid password'
+
 
     if not check_existing_user(params.username, params.email):
         result = create_new_user(params)
@@ -59,8 +63,22 @@ def validate_pw(pw: str) -> bool:
 
     Returns True if valid, False otherwise.
     '''
-    if len(pw) > 16 or len(pw) < 8:
+    if len(pw) > 16 or len(pw) < 6:
         return False
+    
+    uppercase, lowercase, number, special = False, False, False, False
+
+    for c in pw:
+        if c.isupper():
+            uppercase = True
+        elif c.islower():
+            lowercase = True
+        elif c.isnumeric():
+            number = True
+        else:
+            special = True
+    
+    return uppercase and lowercase and number and special
     
 
 
@@ -130,6 +148,29 @@ def create_new_user(params: RegisterUser) -> bool:
     return True
 
 
+def get_user_from_email(email:str) -> UserInfo:
+    '''
+    Returns a user from a given email.
+    '''
+    db = database.db
+    user = None
+    colnames = ['userid', 'username', 'email', 'password', 'salt']
+
+    try:
+        with db.connect() as conn:
+            query = text('SELECT * from users WHERE email=:email;')
+            result = conn.execute(query, dict(email=email))
+            result = result.fetchone()
+            if result:
+                user = UserInfo(**dict(zip(colnames, result)))
+            
+    except Exception as e:
+        logging.error(f'Failed to add new user into database. error: {e}')
+        return False
+
+    return user
+
+
 
 def check_existing_user(username:str, email:str) -> bool:
     '''
@@ -149,3 +190,42 @@ def check_existing_user(username:str, email:str) -> bool:
     return len(result) > 0
 
 
+def update_password(userinfo: UserInfo, newpw: str):
+    '''
+    updates the password for a given user and generates new salt and hash for it.
+    '''
+    if not validate_pw(newpw):
+        return False, 'Invalid password'
+
+    userid = userinfo.userid
+    salt = bcrypt.gensalt()
+    newpw = newpw.encode('utf-8')
+
+    hashedpw = bcrypt.hashpw(newpw, salt)
+
+    db = database.db
+    try:
+        with db.connect() as conn:
+            query = text('UPDATE users SET password=:hashedpw, salt=:salt WHERE user_id=:userid;')
+            result = conn.execute(query, dict(hashedpw=hashedpw, salt=salt, userid=userid))
+            conn.commit()
+            return True, 'Success'
+
+    except Exception as e:
+        logging.info(f'Error updating pw for user {userid}.  Error: {e}')
+        return False, 'Server Error'
+    
+
+def invalidate_token(token):
+    db = database.db
+    try:
+        with db.connect() as conn:
+            query = text('INSERT INTO invalid_jwt_tokens (token) VALUES(:token);')
+            conn.execute(query, dict(token=token))
+            conn.commit()
+
+    except Exception as e:
+        logging.error(f'Failed add to invalid_jwt_tokens table. Error: {e}')
+        return False
+    
+    return True
