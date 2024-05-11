@@ -88,13 +88,18 @@ async def register_new_user(username:str=Form(), email:str=Form(), password:str=
 async def reset_password(
     email: str=Form()
 ):
+    email = email.strip().lower()
     userinfo = get_user_from_email(email)
     if userinfo is None:
         return {'No user found.'}
     
     token = create_access_token({'sub': userinfo.username, 'grant': 'password reset'}, tok_life=15)
+    url = 'http://localhost:3000/reset?reset_token='+token
 
-    return {'token': token, 'url': 'http://localhost:3000/reset?reset_token='+token}
+    sent = send_reset_email(email, url)
+
+
+    return {'success': sent}
 
 
 @app.post(

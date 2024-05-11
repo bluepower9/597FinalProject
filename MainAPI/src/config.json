@@ -9,5 +9,9 @@
     },
     "auth": {
         "jwt_key": "a302fc327c73e890b939c62ead68b294d3564804e1700abc9e9ca55b5fcc0640"
+    },
+    "email": {
+        "email": "docqahelp@gmail.com",
+        "password": "uili xvgn epwm unrq"
     }
 }

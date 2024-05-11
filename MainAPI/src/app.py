@@ -9,6 +9,8 @@ from util.db import MySQLDatabase
 import bcrypt
 import uuid
 import re
+import smtplib
+from email.mime.text import MIMEText
 
 
 
@@ -98,27 +100,6 @@ def validate_email(email: str) -> bool:
 
 
 
-# def login_user(params: OAuth2PasswordRequestForm) -> str:
-#     '''
-#     Takes in user credentials (username, password) and tries to authenticate
-#     and create session key.
-
-#     Returns session key if user is authenticated, None otherwise.
-#     '''
-#     user = authenticate_user(params)
-#     if user:
-#         logging.info(f'Invalid credentials for user: {params.username}')
-#         return None
-    
-#     logging.info(f'Generating session id for user: {params.username}')
-#     sessionid = str(uuid.uuid4())
-
-#     user = get_user_info(params.username)
-#     if not add_session(sessionid, user.userid):
-#         return None
-    
-#     return sessionid
-
 def create_new_user(params: RegisterUser) -> bool:
     '''
     creates a new user and adds them to the db.
@@ -166,7 +147,7 @@ def get_user_from_email(email:str) -> UserInfo:
             
     except Exception as e:
         logging.error(f'Failed to add new user into database. error: {e}')
-        return False
+        return None
 
     return user
 
@@ -217,6 +198,9 @@ def update_password(userinfo: UserInfo, newpw: str):
     
 
 def invalidate_token(token):
+    '''
+    Adds token to invalid table
+    '''
     db = database.db
     try:
         with db.connect() as conn:
@@ -229,3 +213,31 @@ def invalidate_token(token):
         return False
     
     return True
+
+
+def send_reset_email(recipient, url):
+    '''
+    Sends the reset email and returns True or False if it sent successfully.
+    '''
+    sender, pw = configs['email']['email'], configs['email']['password']
+
+    subject = "DocQA Password Reset"
+    body = "Click the link below to reset your DocQA password. It will expire in 15 minutes.\n\n" + url
+
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = recipient
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
+            smtp_server.login(sender, pw)
+            smtp_server.sendmail(sender, recipient, msg.as_string())
+            return True
+
+    except Exception as e:
+        logging.info(e)
+        return False
+    
+
+    

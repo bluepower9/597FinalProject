@@ -1,4 +1,5 @@
 import nltk
+import docx
 from nltk.tokenize import sent_tokenize
 from fastapi import HTTPException, status
 import fitz
@@ -62,6 +63,23 @@ def pdf_reader(filepath: str):
     
 
     return ' '.join(extracted_text)
+
+
+def docx_reader(filepath: str):
+    doc = docx.Document(filepath)
+    text = []
+    for p in doc.paragraphs:
+        text.append(p.text)
+
+    return '/n'.join(text)
+
+def txt_reader(filepath: str):
+    text = []
+    with open(filepath, 'r') as file:
+        for line in file.readlines():
+            text.append(line)
+    
+    return '\n'.join(text)
 
 
 def create_new_doc(doc: Document) -> int:
