@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from util.auth import get_current_user, oauth2_scheme
@@ -25,19 +25,34 @@ async def upload_document(
     title: str = Form(default=None),
     description: str = Form()
 ):
+    file_proc_functions = {
+        'pdf': pdf_reader, 
+        'doc': docx_reader, 
+        'docx': docx_reader, 
+        'txt': txt_reader
+        }
+
     if title is None or title.strip() == '':
         filename = file.filename
     else:
         filename = title
 
     dl_path = f'./temp/{filename}'
-    logging.info(f'received file: {filename}')
+    ext = dl_path.split('.')[-1]
+    logging.info(f'received file: {filename} -- type: {ext}')
+
+    if ext not in file_proc_functions.keys():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail = 'Unprocessable file type. Must be pdf, docx or txt.'
+            )
 
     await download_upload_file(file, dl_path)
     logging.info('Finished downloading file to temp.')
 
     logging.info('Extracting data from file...')
-    excerpts = pdf_reader(dl_path)
+    # excerpts = pdf_reader(dl_path)
+    excerpts = file_proc_functions.get(ext)(dl_path)
 
     logging.info('dividing data in chunks...')
     chunks = divide_into_chunks(excerpts)

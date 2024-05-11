@@ -23,6 +23,35 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440 #60*24 mins
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
 
 
+async def get_current_user_for_pw_reset(token: Annotated[str, Depends(oauth2_scheme)]):
+    cred_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail='Could not validate credentials',
+        headers={'WWW-Authenticate': 'Bearer'}
+    )
+
+    if not valid_jwt_token(token):
+        raise cred_exception
+    
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get('sub')
+        grant = payload.get('grant')
+
+        if username is None or (grant != 'user' and grant != 'password reset'):
+            logging.error('failed to fetch username from jwt payload.')
+            raise cred_exception
+        
+    except JWTError as e:
+        logging.info(f'error validating jwt token: {e}')
+        raise cred_exception
+    
+    user = get_user_info(username)
+    if not user:
+        raise cred_exception
+    return user
+
+
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     cred_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -37,8 +66,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get('sub')
+        grant = payload.get('grant')
 
-        if username is None:
+        if username is None or grant != 'user':
             logging.error('failed to fetch username from jwt payload.')
             raise cred_exception
         
@@ -70,9 +100,9 @@ def valid_jwt_token(token: str) -> bool:
     return True
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict, tok_life=ACCESS_TOKEN_EXPIRE_MINUTES):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=tok_life)
     to_encode.update({'exp': expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
     

@@ -17,9 +17,5 @@ def read_configs(filename='config.json') -> dict:
     return data
 
 
-def validate_pw(pw:str, salt:int, hash:bytes):
-    pass
-
-
 
 
